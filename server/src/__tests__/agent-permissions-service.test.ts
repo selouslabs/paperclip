@@ -20,6 +20,19 @@ describe("agent permissions service", () => {
     ).toBe(true);
   });
 
+  it("accepts only known explicit agent grant keys", () => {
+    expect(updateAgentPermissionsSchema.parse({
+      canCreateAgents: false,
+      canAssignTasks: false,
+      grantKeys: ["agents:configure", "agents:suggest-changes"],
+    }).grantKeys).toEqual(["agents:configure", "agents:suggest-changes"]);
+    expect(() => updateAgentPermissionsSchema.parse({
+      canCreateAgents: false,
+      canAssignTasks: false,
+      grantKeys: ["not-a-permission"],
+    })).toThrow();
+  });
+
   it("keeps stored rows without an explicit value fail-closed", () => {
     expect(defaultAgentPermissions().canCreateAgents).toBe(false);
     expect(defaultAgentPermissions({ context: "stored" }).canCreateAgents).toBe(false);

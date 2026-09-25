@@ -37,6 +37,7 @@ import {
   type AgentSkillAssignmentMode,
   type AgentSkillSnapshot,
   type InstanceSchedulerHeartbeatAgent,
+  type PermissionKey,
   upsertAgentInstructionsFileSchema,
   updateAgentInstructionsBundleSchema,
   updateAgentPermissionsSchema,
@@ -4958,6 +4959,37 @@ export function agentRoutes(
       effectiveCanAssignTasks,
       req.actor.type === "board" ? (req.actor.userId ?? null) : null,
     );
+    if (req.actor.type === "board" && req.body.grantKeys !== undefined) {
+      const requestedGrants = new Set<PermissionKey>(req.body.grantKeys as PermissionKey[]);
+      if (effectiveCanAssignTasks) requestedGrants.add("tasks:assign");
+      else requestedGrants.delete("tasks:assign");
+      const currentGrants = await access.listPrincipalGrants(agent.companyId, "agent", agent.id);
+      const currentGrantKeys = new Set<PermissionKey>(
+        currentGrants.map((grant) => grant.permissionKey as PermissionKey),
+      );
+      for (const permissionKey of requestedGrants) {
+        await access.setPrincipalPermission(
+          agent.companyId,
+          "agent",
+          agent.id,
+          permissionKey,
+          true,
+          req.actor.userId ?? null,
+        );
+      }
+      for (const permissionKey of currentGrantKeys) {
+        if (!requestedGrants.has(permissionKey)) {
+          await access.setPrincipalPermission(
+            agent.companyId,
+            "agent",
+            agent.id,
+            permissionKey,
+            false,
+            req.actor.userId ?? null,
+          );
+        }
+      }
+    }
 
     const actor = getActorInfo(req);
     await logActivity(db, {
