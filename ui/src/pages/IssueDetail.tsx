@@ -163,6 +163,10 @@ import {
 import { useProjectOrder } from "../hooks/useProjectOrder";
 import { recordRecentTask } from "../lib/recent-tasks";
 import {
+  EXECUTION_GATE_DISABLED_STATUSES,
+  isViewerActiveExecutionParticipant,
+} from "../lib/issue-execution-state";
+import {
   relativeTime,
   cn,
   formatDurationMs,
@@ -430,6 +434,10 @@ function buildPlanDecisionResponseText(
 const FEEDBACK_TERMS_URL =
   import.meta.env.VITE_FEEDBACK_TERMS_URL?.trim() ||
   "https://paperclip.ing/tos";
+const SUPPRESS_ERROR_TOAST_KEY = "__suppressErrorToast" as const;
+type UpdateIssueInput = Record<string, unknown> & {
+  [SUPPRESS_ERROR_TOAST_KEY]?: true;
+};
 const ISSUE_COMMENT_AUTOLOAD_LIMIT = ISSUE_COMMENT_PAGE_SIZE * 3;
 const JUMP_TO_LATEST_MAX_COMMENT_PAGES = 10;
 function treeControlPreviewErrorCopy(error: unknown): string {
@@ -3984,9 +3992,12 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
   });
 
   const updateIssue = useMutation({
-    mutationFn: (data: Record<string, unknown>) =>
-      issuesApi.update(issueId!, data),
-    onMutate: async (data) => {
+    mutationFn: (input: UpdateIssueInput) => {
+      const { [SUPPRESS_ERROR_TOAST_KEY]: _suppress, ...data } = input;
+      return issuesApi.update(issueId!, data);
+    },
+    onMutate: async (input: UpdateIssueInput) => {
+      const { [SUPPRESS_ERROR_TOAST_KEY]: _suppress, ...data } = input;
       await queryClient.cancelQueries({
         queryKey: queryKeys.issues.detail(issueId!),
       });
@@ -4036,7 +4047,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
       });
       invalidateIssueCollections();
     },
-    onError: (err, _variables, context) => {
+    onError: (err, variables, context) => {
       for (const [queryKey, previousIssue] of context?.previousDetailQueries ??
         []) {
         queryClient.setQueryData(queryKey, previousIssue);
@@ -4047,6 +4058,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
           context.previousList,
         );
       }
+      if (variables?.[SUPPRESS_ERROR_TOAST_KEY]) return;
       pushToast({
         title: "Task update failed",
         body:
@@ -4301,6 +4313,12 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
       updateIssue.mutate(data);
     },
     [updateIssue.mutate],
+  );
+  const handleExecutionDecisionSubmit = useCallback(
+    async (input: { status: "done" | "in_progress"; comment: string }) => {
+      await updateIssue.mutateAsync({ ...input, [SUPPRESS_ERROR_TOAST_KEY]: true });
+    },
+    [updateIssue.mutateAsync],
   );
 
   const updateChildIssue = useMutation({
@@ -5604,6 +5622,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
         : undefined,
       onAddSubIssue: openNewSubIssue,
       onUpdate: handleIssuePropertiesUpdate,
+      onSubmitExecutionDecision: handleExecutionDecisionSubmit,
       hasActiveRun: resolvedHasActiveRun,
       externalObjects: externalObjectsState.isEnabled
         ? externalObjectsState.groups
@@ -6852,6 +6871,12 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
       status={issue.status} externalConversationState={issue.externalConversationState}
       size="lg"
       blockerAttention={issue.blockerAttention}
+      disabledStatuses={isViewerActiveExecutionParticipant({
+        issueStatus: issue.status,
+        executionState: issue.executionState,
+        currentUserId,
+      }) ? EXECUTION_GATE_DISABLED_STATUSES : undefined}
+      disabledStatusReason="Use the approval form in Issue Properties to add a required comment."
       onChange={(status) => updateIssue.mutate({ status })}
     />
   );
@@ -8097,6 +8122,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
                     }
                     onAddSubIssue={openNewSubIssue}
                     onUpdate={(data) => updateIssue.mutate(data)}
+                    onSubmitExecutionDecision={handleExecutionDecisionSubmit}
                     inline
                     hasActiveRun={resolvedHasActiveRun}
                     externalObjects={
@@ -8160,6 +8186,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
                         }
                         onAddSubIssue={openNewSubIssue}
                         onUpdate={(data) => updateIssue.mutate(data)}
+                        onSubmitExecutionDecision={handleExecutionDecisionSubmit}
                         inline
                         hasActiveRun={resolvedHasActiveRun}
                         externalObjects={

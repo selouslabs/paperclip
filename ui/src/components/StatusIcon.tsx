@@ -18,6 +18,8 @@ interface StatusIconProps {
   onChange?: (status: string) => void;
   className?: string;
   showLabel?: boolean;
+  disabledStatuses?: readonly string[];
+  disabledStatusReason?: string;
   /** Glyph size (PAP-243a). Default `md` (16px); lists/detail/mentions use `lg` (20px). */
   size?: StatusGlyphSize;
 }
@@ -76,7 +78,17 @@ function blockedAttentionLabel(blockerAttention: IssueBlockerAttention | null | 
  * glyph — the blocked shape recoloured blue — while the full blocked reason
  * still rides on the accessible label.
  */
-export function StatusIcon({ status, externalConversationState, blockerAttention, onChange, className, showLabel, size = "md" }: StatusIconProps) {
+export function StatusIcon({
+  status,
+  externalConversationState,
+  blockerAttention,
+  onChange,
+  className,
+  showLabel,
+  size = "md",
+  disabledStatuses,
+  disabledStatusReason,
+}: StatusIconProps) {
   const [open, setOpen] = useState(false);
   const displayStatus = status === "in_review" && externalConversationState === "waiting" ? "idle" : status;
   const isCoveredBlocked = status === "blocked" && blockerAttention?.state === "covered";
@@ -127,21 +139,32 @@ export function StatusIcon({ status, externalConversationState, blockerAttention
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent className="w-40 p-1" align="start">
-        {allStatuses.map((s) => (
-          <Button
-            key={s}
-            variant="ghost"
-            size="sm"
-            className={cn("w-full justify-start gap-2 text-xs", s === status && "bg-accent")}
-            onClick={() => {
-              onChange(s);
-              setOpen(false);
-            }}
-          >
-            <StatusIcon status={s} size="lg" />
-            {statusLabel(s)}
-          </Button>
-        ))}
+        {allStatuses.map((s) => {
+          const isDisabled = disabledStatuses?.includes(s) ?? false;
+          return (
+            <Button
+              key={s}
+              variant="ghost"
+              size="sm"
+              disabled={isDisabled}
+              aria-disabled={isDisabled || undefined}
+              title={isDisabled ? disabledStatusReason : undefined}
+              className={cn(
+                "w-full justify-start gap-2 text-xs",
+                s === status && "bg-accent",
+                isDisabled && "opacity-60 cursor-not-allowed",
+              )}
+              onClick={() => {
+                if (isDisabled) return;
+                onChange(s);
+                setOpen(false);
+              }}
+            >
+              <StatusIcon status={s} />
+              {statusLabel(s)}
+            </Button>
+          );
+        })}
       </PopoverContent>
     </Popover>
   );

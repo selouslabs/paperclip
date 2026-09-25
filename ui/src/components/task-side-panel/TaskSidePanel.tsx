@@ -83,6 +83,10 @@ export interface TaskSidePanelProps {
   issueLinkState?: unknown;
   onAddSubIssue?: () => void;
   onUpdate: (data: Record<string, unknown>) => void;
+  onSubmitExecutionDecision?: (input: {
+    status: "done" | "in_progress";
+    comment: string;
+  }) => Promise<void>;
   inline?: boolean;
   hasActiveRun?: boolean;
   externalObjects?: IssueExternalObjectGroup[];
@@ -220,6 +224,7 @@ export function TaskSidePanel({
   issueLinkState,
   onAddSubIssue,
   onUpdate,
+  onSubmitExecutionDecision,
   inline = false,
   hasActiveRun = false,
   externalObjects,
@@ -633,6 +638,7 @@ export function TaskSidePanel({
         issueLinkState={issueLinkState}
         onAddSubIssue={onAddSubIssue}
         onUpdate={onUpdate}
+        onSubmitExecutionDecision={onSubmitExecutionDecision}
         inline={inline}
         hasActiveRun={hasActiveRun}
         externalObjects={externalObjects}

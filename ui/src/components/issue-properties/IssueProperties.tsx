@@ -42,6 +42,13 @@ import {
 import { getRecentProjectIds, trackRecentProject } from "../../lib/recent-projects";
 import { orderItemsBySelectedAndRecent } from "../../lib/recent-selections";
 import { formatAssigneeUserLabel, formatUserLabel } from "../../lib/assignees";
+import {
+  EXECUTION_GATE_DISABLED_STATUSES,
+  deriveExecutionGateView,
+  stickyExecutionGateView,
+  type ExecutionGateView,
+} from "../../lib/issue-execution-state";
+import { ExecutionPolicyGate } from "../ExecutionPolicyGate";
 import { buildExecutionPolicy, stageParticipantValues } from "../../lib/issue-execution-policy";
 import {
   formatMonitorAbsolute,
@@ -190,6 +197,10 @@ interface IssuePropertiesProps {
   issueLinkState?: unknown;
   onAddSubIssue?: () => void;
   onUpdate: (data: Record<string, unknown>) => void;
+  onSubmitExecutionDecision?: (input: {
+    status: "done" | "in_progress";
+    comment: string;
+  }) => Promise<void>;
   inline?: boolean;
   /** Whether an agent run is currently in flight on this issue, so the assignee
    * picker can warn that reassigning will interrupt it. */
@@ -231,6 +242,7 @@ export function IssueProperties({
   issueLinkState,
   onAddSubIssue,
   onUpdate,
+  onSubmitExecutionDecision,
   inline,
   hasActiveRun = false,
   externalObjects,
@@ -1067,6 +1079,38 @@ export function IssueProperties({
     }
     return `${stageLabel} pending${participantLabel ? ` with ${participantLabel}` : ""}`;
   })();
+  const executionGateView = deriveExecutionGateView({
+    issueStatus: issue.status,
+    executionState: issue.executionState,
+    currentUserId: currentUserId ?? null,
+    agentName,
+    userLabel,
+  });
+  const [executionDecisionInFlight, setExecutionDecisionInFlight] = useState(false);
+  const lastSelfExecutionViewRef = useRef<ExecutionGateView | null>(null);
+  if (executionGateView.kind === "self") {
+    lastSelfExecutionViewRef.current = executionGateView;
+  }
+  const stickyGateView = stickyExecutionGateView({
+    current: executionGateView,
+    inFlight: executionDecisionInFlight,
+    lastSelf: lastSelfExecutionViewRef.current,
+  });
+  const handleExecutionDecisionSubmit = useCallback(
+    async ({ decision, comment }: { decision: "approve" | "request_changes"; comment: string }) => {
+      if (!onSubmitExecutionDecision) return;
+      setExecutionDecisionInFlight(true);
+      try {
+        await onSubmitExecutionDecision({
+          status: decision === "approve" ? "done" : "in_progress",
+          comment,
+        });
+      } finally {
+        setExecutionDecisionInFlight(false);
+      }
+    },
+    [onSubmitExecutionDecision],
+  );
   useEffect(() => {
     setMonitorAtInput(toDateTimeLocalValue(issue.executionPolicy?.monitor?.nextCheckAt));
     setMonitorNotesInput(issue.executionPolicy?.monitor?.notes ?? "");
@@ -2337,6 +2381,8 @@ export function IssueProperties({
             status={issue.status} externalConversationState={issue.externalConversationState}
             className="size-3"
             blockerAttention={issue.blockerAttention}
+            disabledStatuses={executionGateView.kind === "self" ? EXECUTION_GATE_DISABLED_STATUSES : undefined}
+            disabledStatusReason="Use the approval form below to add a required comment."
             onChange={(status) => onUpdate({ status })}
             showLabel
           />
@@ -2639,11 +2685,18 @@ export function IssueProperties({
         </PropertyPicker>
         {nextRunnableExecutionStage === "approval" && approverValues.length > 0 ? runExecutionButton("approval") : null}
 
-        {currentExecutionLabel && (
+        {stickyGateView?.kind === "self" && onSubmitExecutionDecision ? (
+          <div className="py-1.5">
+            <ExecutionPolicyGate
+              view={stickyGateView}
+              onSubmitDecision={handleExecutionDecisionSubmit}
+            />
+          </div>
+        ) : currentExecutionLabel ? (
           <PropertyRow label="Execution">
-            <span className="text-sm truncate min-w-0" title={currentExecutionLabel}>{currentExecutionLabel}</span>
+            <span className="text-sm">{currentExecutionLabel}</span>
           </PropertyRow>
-        )}
+        ) : null}
 
         {showScheduledRetryRow && scheduledRetry?.scheduledRetryReason === "workspace_busy" ? (
           <PropertyRow label="Workspace">
