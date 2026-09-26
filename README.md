@@ -38,6 +38,34 @@ It looks like a task manager. Under the hood: org charts, budgets, governance, g
 
 **Manage business goals, not pull requests.**
 
+## Selouslabs downstream fork
+
+This repository is the Selouslabs downstream fork of [Paperclip upstream](https://github.com/paperclipai/paperclip). The fork's `master` branch is the canonical branch for our deployment; do not deploy `upstream/master` directly.
+
+The branch model is:
+
+```text
+paperclipai/paperclip:master
+          │
+          │ merge upstream updates
+          ▼
+selouslabs/paperclip:master
+          ├── current upstream Paperclip changes
+          └── Selouslabs execution-policy and agent-grant patches
+```
+
+Our custom execution-policy work was consolidated into commit `679c967b8` and then combined with upstream in merge commit `f4847a302`. The consolidated patch includes the desktop, mobile, and task-panel approval gate, shared status restrictions, explicit agent-grant persistence/reconciliation, and their tests.
+
+When updating the fork:
+
+1. Start from `selouslabs/paperclip:master`.
+2. Merge or rebase from `paperclipai/paperclip:master`.
+3. Preserve and re-test the downstream execution-policy and grant behavior across desktop, mobile, task-panel, server, and security paths.
+4. Run the affected tests and typechecks against the final combined tree—not only against the original upstream or patch commit.
+5. Deploy only an exact fork commit that has passed final verification.
+
+The individual historical patch commits are retained as audit references, but the combined fork state—not those individual commits—is what we use.
+
 |        | Step            | Example                                                            |
 | ------ | --------------- | ------------------------------------------------------------------ |
 | **01** | Define the goal | _"Build the #1 AI note-taking app to $1M MRR."_                    |

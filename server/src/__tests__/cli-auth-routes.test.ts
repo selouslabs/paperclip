@@ -204,10 +204,10 @@ describe.sequential("cli auth routes", () => {
     ["board_api_key", "board", false, true, false],
   ])("reports CLI approval for %s requesting %s", async (source, requestedAccess, isInstanceAdmin, requiresSignIn, canApprove) => {
     mockBoardAuthService.describeCliAuthChallenge.mockResolvedValue({
-      id: "challenge-1", status: "pending", requestedAccess,
+      id: "12345678-1234-4123-8123-123456789abc", status: "pending", requestedAccess,
     });
     const app = await createApp({ type: "board", source, userId: "user-1", isInstanceAdmin });
-    const res = await request(app).get("/api/cli-auth/challenges/challenge-1?token=pcp_cli_auth_secret");
+    const res = await request(app).get("/api/cli-auth/challenges/12345678-1234-4123-8123-123456789abc?token=pcp_cli_auth_secret");
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ requiresSignIn, canApprove });
   });
