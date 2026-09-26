@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import {
   activityLog,
   agents,
@@ -258,6 +259,26 @@ describeEmbeddedPostgres("companySkillPolicyService", () => {
       status: 403,
       details: { code: "skill_company_boundary_denied" },
     });
+  });
+
+  it("resolves the agent skill-creation permission with a safe allow default", async () => {
+    const seeded = await seedAgent();
+    const service = companySkillPolicyService(db);
+
+    await expect(service.resolveAgentPrincipal(seeded.companyId, seeded.agentId))
+      .resolves.toMatchObject({ canCreateSkills: true });
+
+    await db.update(agents)
+      .set({ permissions: { canCreateSkills: false } })
+      .where(eq(agents.id, seeded.agentId));
+    await expect(service.resolveAgentPrincipal(seeded.companyId, seeded.agentId))
+      .resolves.toMatchObject({ canCreateSkills: false });
+
+    await db.update(agents)
+      .set({ permissions: {} })
+      .where(eq(agents.id, seeded.agentId));
+    await expect(service.resolveAgentPrincipal(seeded.companyId, seeded.agentId))
+      .resolves.toMatchObject({ canCreateSkills: true });
   });
 
   it("rolls back policy replacement when the required activity record cannot persist", async () => {

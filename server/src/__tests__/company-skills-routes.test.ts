@@ -1445,12 +1445,13 @@ describe("company skill mutation permissions", () => {
     });
   });
 
-  it("allows same-company agents without skill change grants when no explicit policy exists", async () => {
-    mockAccessService.decide.mockResolvedValue(denySkillChangeDecision());
-    mockAgentService.getById.mockResolvedValue({
+  it("denies same-company agents when canCreateSkills is disabled", async () => {
+    mockAccessService.decide.mockResolvedValue(allowSkillChangeDecision());
+    mockCompanySkillPolicyService.resolveAgentPrincipal.mockResolvedValue({
+      type: "agent",
       id: "55555555-5555-4555-8555-555555555555",
-      companyId: "company-1",
-      permissions: { canCreateSkills: false },
+      role: "engineer",
+      canCreateSkills: false,
     });
 
     const res = await request(await createApp({
@@ -1462,13 +1463,9 @@ describe("company skill mutation permissions", () => {
       .post("/api/companies/company-1/skills/import")
       .send({ source: "https://github.com/vercel-labs/agent-browser" });
 
-    expect(res.status, JSON.stringify(res.body)).toBe(201);
-    expect(mockAccessService.decide).toHaveBeenCalledWith(expect.objectContaining({
-      action: "skill_config:update",
-      resource: { type: "company", companyId: "company-1" },
-    }));
-    expect(mockAccessService.hasPermission).not.toHaveBeenCalledWith("company-1", "agent", "55555555-5555-4555-8555-555555555555", "agents:create");
-    expect(mockCompanySkillService.importFromSource).toHaveBeenCalled();
+    expect(res.status, JSON.stringify(res.body)).toBe(403);
+    expect(res.body).toMatchObject({ error: "Missing permission: canCreateSkills" });
+    expect(mockCompanySkillService.importFromSource).not.toHaveBeenCalled();
   });
 
   it("blocks agent catalog installs for other companies", async () => {
@@ -1755,10 +1752,11 @@ describe("company skill mutation permissions", () => {
 
   it("allows agents with direct skills:create grants to mutate company skills", async () => {
     mockAccessService.decide.mockResolvedValue(allowSkillChangeDecision("allow_direct_change"));
-    mockAgentService.getById.mockResolvedValue({
+    mockCompanySkillPolicyService.resolveAgentPrincipal.mockResolvedValue({
+      type: "agent",
       id: "55555555-5555-4555-8555-555555555555",
-      companyId: "company-1",
-      permissions: { canCreateSkills: false },
+      role: "engineer",
+      canCreateSkills: true,
     });
 
     const res = await request(await createApp({
