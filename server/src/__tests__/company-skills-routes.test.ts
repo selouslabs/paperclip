@@ -1752,10 +1752,11 @@ describe("company skill mutation permissions", () => {
 
   it("allows agents with direct skills:create grants to mutate company skills", async () => {
     mockAccessService.decide.mockResolvedValue(allowSkillChangeDecision("allow_direct_change"));
-    mockAgentService.getById.mockResolvedValue({
+    mockCompanySkillPolicyService.resolveAgentPrincipal.mockResolvedValue({
+      type: "agent",
       id: "55555555-5555-4555-8555-555555555555",
-      companyId: "company-1",
-      permissions: { canCreateSkills: false },
+      role: "engineer",
+      canCreateSkills: true,
     });
 
     const res = await request(await createApp({
