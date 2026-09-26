@@ -19,6 +19,7 @@ export type SkillPolicyPrincipal = {
   type: "agent" | "board";
   id: string;
   role: string | null;
+  canCreateSkills?: boolean;
 };
 
 const OPEN_DEFAULT_POLICY: EffectiveSkillPolicy = {
@@ -123,7 +124,7 @@ export function companySkillPolicyService(db: Db) {
 
   async function resolveAgentPrincipal(companyId: string, agentId: string): Promise<SkillPolicyPrincipal> {
     const agent = await db
-      .select({ id: agents.id, companyId: agents.companyId, role: agents.role })
+      .select({ id: agents.id, companyId: agents.companyId, role: agents.role, permissions: agents.permissions })
       .from(agents)
       .where(eq(agents.id, agentId))
       .then((rows) => rows[0] ?? null);
@@ -133,7 +134,12 @@ export function companySkillPolicyService(db: Db) {
         code: "skill_company_boundary_denied",
       });
     }
-    return { type: "agent", id: agent.id, role: agent.role };
+    return {
+      type: "agent",
+      id: agent.id,
+      role: agent.role,
+      canCreateSkills: agent.permissions?.canCreateSkills !== false,
+    };
   }
 
   async function hasLegacyBroadMutationGrant(companyId: string, principal: SkillPolicyPrincipal) {
