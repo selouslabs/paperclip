@@ -228,10 +228,17 @@ export function companySkillRoutes(db: Db) {
         reason: "platform_invariant",
       });
     }
+    const principal = await skillPolicyPrincipal(req, companyId);
+    if (principal.type === "agent" && principal.canCreateSkills === false) {
+      throw forbidden("Missing permission: canCreateSkills", {
+        code: "skill_actor_restricted",
+        reason: "agent_permission",
+      });
+    }
     const resolvedResource = typeof resource === "function" ? await resource() : await resource;
     const policyDecision = await skillPolicies.evaluate({
       companyId,
-      principal: await skillPolicyPrincipal(req, companyId),
+      principal,
       action,
       resource: resolvedResource,
     });
