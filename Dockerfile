@@ -202,6 +202,12 @@ EXPOSE 3100
 # cgroup pid limit is exhausted and *every* fork() in the container fails.
 # tini reaps adopted orphans and forwards signals, so the exec chain below and
 # graceful shutdown are unchanged. Mirrors docker/agent-runtime/Dockerfile.base.
+# Run interactive CLI logins (Codex, Claude, Grok, and other local
+# subscription connectors) as the same node user that the server uses. Without
+# an explicit image user, Docker/Unraid consoles default to root; CLI tools then
+# write mode-0600 credentials that Paperclip cannot verify. The entrypoint still
+# supports non-root/container platforms.
+USER node
 ENTRYPOINT ["/usr/bin/tini", "--", "docker-entrypoint.sh"]
 CMD ["node", "--import", "./server/node_modules/tsx/dist/loader.mjs", "server/dist/index.js"]
 
