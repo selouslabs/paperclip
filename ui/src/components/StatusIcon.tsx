@@ -17,6 +17,8 @@ interface StatusIconProps {
   blockerAttention?: IssueBlockerAttention | null;
   onChange?: (status: string) => void;
   className?: string;
+  /** Optional layout wrapper around the glyph. Does not change glyph dimensions. */
+  glyphContainerClassName?: string;
   showLabel?: boolean;
   disabledStatuses?: readonly string[];
   disabledStatusReason?: string;
@@ -88,6 +90,7 @@ export function StatusIcon({
   size = "md",
   disabledStatuses,
   disabledStatusReason,
+  glyphContainerClassName,
 }: StatusIconProps) {
   const [open, setOpen] = useState(false);
   const displayStatus = status === "in_review" && externalConversationState === "waiting" ? "idle" : status;
@@ -95,7 +98,7 @@ export function StatusIcon({
   const ariaLabel = status === "blocked" ? blockedAttentionLabel(blockerAttention) : statusLabel(displayStatus);
   const glyphStatus = isCoveredBlocked ? "in_queue" : displayStatus;
 
-  const glyph = (
+  const glyphIcon = (
     <StatusGlyph
       status={glyphStatus}
       size={size}
@@ -103,6 +106,11 @@ export function StatusIcon({
       title={ariaLabel}
     />
   );
+  const glyph = glyphContainerClassName ? (
+    <span className={glyphContainerClassName} data-status-glyph-container="true">
+      {glyphIcon}
+    </span>
+  ) : glyphIcon;
 
   if (!onChange) {
     return showLabel ? (
@@ -160,7 +168,7 @@ export function StatusIcon({
                 setOpen(false);
               }}
             >
-              <StatusIcon status={s} />
+              <StatusIcon status={s} size="lg" />
               {statusLabel(s)}
             </Button>
           );
